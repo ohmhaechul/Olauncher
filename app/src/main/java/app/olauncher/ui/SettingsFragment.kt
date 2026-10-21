@@ -43,6 +43,10 @@ import app.olauncher.helper.OlDialog
 import app.olauncher.helper.showPopupMenu
 import app.olauncher.helper.showStatusBar
 import app.olauncher.helper.showToast
+import android.text.InputType
+import android.widget.EditText
+import androidx.appcompat.app.AlertDialog
+import app.olauncher.helper.DevicePolicyHelper
 import app.olauncher.listener.DeviceAdmin
 
 class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListener {
@@ -102,14 +106,17 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
             R.id.olauncherHiddenApps -> showHiddenApps()
             R.id.moreFeatures -> viewModel.showDialog.postValue(Constants.Dialog.PRO_MESSAGE)
             R.id.screenTimeOnOff -> viewModel.showDialog.postValue(Constants.Dialog.DIGITAL_WELLBEING)
-            R.id.appInfo -> openAppInfo(requireContext(), Process.myUserHandle(), BuildConfig.APPLICATION_ID)
+            R.id.appInfo -> showParentControlDialog()
             R.id.setLauncher -> viewModel.resetLauncherLiveData.call()
             R.id.toggleLock -> toggleLockMode()
             // Home button for recents feature disabled
             // R.id.homeButtonRecents -> toggleHomeButtonRecents()
             R.id.autoShowKeyboard -> toggleKeyboardText()
             R.id.homeAppsNum -> showHomeAppsNumMenu(view)
-            R.id.dailyWallpaperUrl -> requireContext().openUrl(prefs.dailyWallpaperUrl)
+            R.id.dailyWallpaperUrl -> {
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else requireContext().openUrl(prefs.dailyWallpaperUrl)
+            }
             R.id.dailyWallpaper -> toggleDailyWallpaperUpdate()
             R.id.alignment -> showAlignmentMenu(view)
             R.id.statusBar -> toggleStatusBar()
@@ -122,25 +129,147 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
             R.id.swipeRightApp -> showAppListIfEnabled(Constants.FLAG_SET_SWIPE_RIGHT_APP)
 
             R.id.aboutOlauncher -> {
-                prefs.aboutClicked = true
-                requireContext().openUrl(Constants.URL_ABOUT_OLAUNCHER)
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else {
+                    prefs.aboutClicked = true
+                    requireContext().openUrl(Constants.URL_ABOUT_OLAUNCHER)
+                }
             }
 
-            R.id.share -> requireActivity().shareApp()
+            R.id.share -> {
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else requireActivity().shareApp()
+            }
             R.id.rate -> {
-                prefs.rateClicked = true
-                requireActivity().rateApp()
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else {
+                    prefs.rateClicked = true
+                    requireActivity().rateApp()
+                }
             }
 
-            R.id.twitter -> requireContext().openUrl(Constants.URL_TWITTER_TANUJ)
-            R.id.github -> requireContext().openUrl(Constants.URL_OLAUNCHER_GITHUB)
-            R.id.privacy -> requireContext().openUrl(Constants.URL_OLAUNCHER_PRIVACY)
+            R.id.twitter -> {
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else requireContext().openUrl(Constants.URL_TWITTER_TANUJ)
+            }
+            R.id.github -> {
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else requireContext().openUrl(Constants.URL_OLAUNCHER_GITHUB)
+            }
+            R.id.privacy -> {
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else requireContext().openUrl(Constants.URL_OLAUNCHER_PRIVACY)
+            }
             R.id.footer -> {
-                requireContext().openUrl(
-                    if (showPentastic) Constants.URL_PENTASTIC else Constants.URL_NTS
-                )
+                if (isKioskMode()) requireContext().showToast("피쳐폰 모드에서는 차단됩니다.")
+                else {
+                    requireContext().openUrl(
+                        if (showPentastic) Constants.URL_PENTASTIC else Constants.URL_NTS
+                    )
+                }
             }
         }
+    }
+
+    private fun isKioskMode(): Boolean =
+        prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+
+    private fun showParentControlDialog() {
+        val context = requireContext()
+        val isDeviceOwner = DevicePolicyHelper.isDeviceOwner(context)
+        val items = arrayOf(
+            "1. 피쳐폰 정책 적용 (앱 숨김 & 제한)",
+            "2. 구글 계정 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
+            "3. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
+            "4. 부모님 PIN 변경",
+            "5. 안드로이드 전체 시스템 설정 열기",
+            "6. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
+        )
+        AlertDialog.Builder(context)
+            .setTitle("부모님 관리자 메뉴")
+            .setItems(items) { _, which ->
+                when (which) {
+                    0 -> {
+                        if (isDeviceOwner) {
+                            DevicePolicyHelper.applyStudentKioskPolicies(context)
+                            context.showToast("피쳐폰 정책이 적용되었습니다.")
+                        } else {
+                            context.showToast("Device Owner 권한이 필요합니다.")
+                        }
+                    }
+                    1 -> {
+                        val currentLocked = prefs.googleAccountLocked
+                        val newLocked = !currentLocked
+                        prefs.googleAccountLocked = newLocked
+                        DevicePolicyHelper.setAccountModificationAllowed(context, !newLocked)
+                        context.showToast(if (newLocked) "구글 계정 추가/수정이 차단되었습니다." else "구글 계정 추가/수정이 허용되었습니다.")
+                    }
+                    2 -> {
+                        val currentBlocked = prefs.statusBarBlocked
+                        val newBlocked = !currentBlocked
+                        prefs.statusBarBlocked = newBlocked
+                        DevicePolicyHelper.setStatusBarDisabled(context, newBlocked)
+                        context.showToast(if (newBlocked) "상단바 내리기가 차단되었습니다." else "상단바 내리기가 허용되었습니다.")
+                    }
+                    3 -> showChangePinDialog()
+                    4 -> {
+                        try {
+                            if (isDeviceOwner) {
+                                DevicePolicyHelper.setSettingsAppHidden(context, false)
+                            }
+                            val intent = Intent(Settings.ACTION_SETTINGS).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            try {
+                                val intent = context.packageManager.getLaunchIntentForPackage("com.android.settings")
+                                intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                if (intent != null) {
+                                    startActivity(intent)
+                                } else {
+                                    context.showToast("설정 앱을 찾을 수 없습니다.")
+                                }
+                            } catch (e2: Exception) {
+                                context.showToast("설정 열기 실패: ${e2.message}")
+                            }
+                        }
+                    }
+                    5 -> {
+                        if (isDeviceOwner) {
+                            DevicePolicyHelper.disableStudentKioskPolicies(context)
+                            context.showToast("피쳐폰 정책이 해제되고 모든 앱이 복구되었습니다.")
+                        } else {
+                            context.showToast("Device Owner 권한이 필요합니다.")
+                        }
+                    }
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showChangePinDialog() {
+        val input = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
+            hint = "새 PIN 번호 4자리"
+            gravity = Gravity.CENTER
+            setPadding(40, 30, 40, 30)
+        }
+        AlertDialog.Builder(requireContext())
+            .setTitle("부모님 PIN 변경")
+            .setView(input)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val newPin = input.text.toString().trim()
+                if (newPin.length >= 4) {
+                    prefs.parentPin = newPin
+                    requireContext().showToast("PIN이 변경되었습니다.")
+                } else {
+                    requireContext().showToast("PIN은 최소 4자리여야 합니다.")
+                }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
     }
 
     override fun onLongClick(view: View): Boolean {

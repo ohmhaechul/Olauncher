@@ -24,6 +24,7 @@ import app.olauncher.data.AppModel
 import app.olauncher.data.Constants
 import app.olauncher.data.Prefs
 import app.olauncher.databinding.FragmentAppDrawerBinding
+import app.olauncher.helper.DevicePolicyHelper
 import app.olauncher.helper.deletePinnedShortcut
 import app.olauncher.helper.hideKeyboard
 import app.olauncher.helper.isEinkDisplay
@@ -95,6 +96,12 @@ class AppDrawerFragment : BaseFragment() {
     private fun initSearch() {
         binding.search.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?): Boolean {
+                if (prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())) {
+                    if (adapter.itemCount > 0) {
+                        adapter.launchFirstInList()
+                    }
+                    return true
+                }
                 if (query?.startsWith("!") == true)
                     requireContext().openUrl(Constants.URL_DUCK_SEARCH + query.replace(" ", "%20"))
                 else if (adapter.itemCount == 0)

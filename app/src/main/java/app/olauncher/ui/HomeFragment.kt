@@ -40,7 +40,9 @@ import app.olauncher.helper.openAlarmApp
 import app.olauncher.helper.openCalendar
 import app.olauncher.helper.openCameraApp
 import app.olauncher.helper.openDialerApp
+import app.olauncher.helper.DevicePolicyHelper
 import app.olauncher.helper.setPlainWallpaperByTheme
+import app.olauncher.helper.showPinDialog
 import app.olauncher.helper.showToast
 import app.olauncher.listener.OnSwipeTouchListener
 import app.olauncher.listener.ViewSwipeTouchListener
@@ -534,6 +536,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     private fun showAppList(flag: Int, rename: Boolean = false, includeHiddenApps: Boolean = false) {
+        val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+        if (isKiosk && flag == Constants.FLAG_LAUNCH_APP) {
+            // 피쳐폰 모드에서는 홈 화면에 이미 모든 6개 앱이 있으므로 앱스 화면(앱 서랍) 진입을 차단합니다.
+            return
+        }
         viewModel.getAppList(includeHiddenApps)
         try {
             findNavController().navigate(
@@ -652,7 +659,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
             override fun onSwipeUp() {
                 super.onSwipeUp()
-                showAppList(Constants.FLAG_LAUNCH_APP)
+                val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+                if (!isKiosk) {
+                    showAppList(Constants.FLAG_LAUNCH_APP)
+                }
             }
 
             override fun onSwipeDown() {
@@ -663,8 +673,20 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             override fun onLongClick() {
                 super.onLongClick()
                 try {
-                    findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
-                    viewModel.firstOpen(false)
+                    val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+                    if (isKiosk && prefs.parentPin.isNotBlank()) {
+                        requireContext().showPinDialog(
+                            title = "설정 진입 (부모님 PIN)",
+                            correctPin = prefs.parentPin,
+                            onSuccess = {
+                                findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
+                                viewModel.firstOpen(false)
+                            }
+                        )
+                    } else {
+                        findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
+                        viewModel.firstOpen(false)
+                    }
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
@@ -700,7 +722,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
             override fun onSwipeUp() {
                 super.onSwipeUp()
-                showAppList(Constants.FLAG_LAUNCH_APP)
+                val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+                if (!isKiosk) {
+                    showAppList(Constants.FLAG_LAUNCH_APP)
+                }
             }
 
             override fun onSwipeDown() {

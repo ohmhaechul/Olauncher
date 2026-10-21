@@ -82,24 +82,30 @@ suspend fun getAppsList(
                 context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
             val collator = Collator.getInstance()
 
+            val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(context)
+
             for (profile in userManager.userProfiles) {
                 if (isPrivateSpaceProfile(context, profile)) continue
                 for (app in launcherApps.getActivityList(null, profile)) {
-                    val appLabelShown = prefs.getAppRenameLabel(app.applicationInfo.packageName)
+                    val pkgName = app.applicationInfo.packageName
+                    if (isKiosk && (!DevicePolicyHelper.ALLOWED_USER_PACKAGES.contains(pkgName) || pkgName == "com.android.settings")) {
+                        continue
+                    }
+                    val appLabelShown = prefs.getAppRenameLabel(pkgName)
                         .ifBlank { app.label.toString() }
                     val appModel = AppModel.App(
                         appLabel = appLabelShown,
                         key = collator.getCollationKey(app.label.toString()),
-                        appPackage = app.applicationInfo.packageName,
+                        appPackage = pkgName,
                         activityClassName = app.componentName.className,
                         isNew = (System.currentTimeMillis() - app.firstInstallTime) < Constants.ONE_HOUR_IN_MILLIS,
                         user = profile
                     )
 
                     // if the current app is not OLauncher
-                    if (app.applicationInfo.packageName != BuildConfig.APPLICATION_ID) {
+                    if (pkgName != BuildConfig.APPLICATION_ID) {
                         // is this a hidden app?
-                        if (hiddenApps.contains(app.applicationInfo.packageName + "|" + profile.toString())) {
+                        if (hiddenApps.contains(pkgName + "|" + profile.toString())) {
                             if (includeHiddenApps) {
                                 appList.add(appModel)
                             }
@@ -113,8 +119,8 @@ suspend fun getAppsList(
                 }
             }
 
-            // Add shortcuts if we're getting regular apps
-            if (includeRegularApps && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            // Add shortcuts if we're getting regular apps (and not in kiosk mode)
+            if (includeRegularApps && !isKiosk && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 val pinned = try {
                     getPinnedShortcuts(context, prefs, collator)
                 } catch (e: Exception) {

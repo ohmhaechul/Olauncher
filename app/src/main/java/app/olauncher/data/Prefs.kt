@@ -644,4 +644,25 @@ class Prefs(context: Context) {
     fun getAppRenameLabel(appPackage: String): String = prefs.getString(appPackage, "").toString()
 
     fun setAppRenameLabel(appPackage: String, renameLabel: String) = prefs.edit { putString(appPackage, renameLabel) }
+
+    private val PARENT_PIN = "PARENT_PIN"
+    private val STUDENT_KIOSK_ENABLED = "STUDENT_KIOSK_ENABLED"
+    private val STATUS_BAR_BLOCKED = "STATUS_BAR_BLOCKED"
+    private val GOOGLE_ACCOUNT_LOCKED = "GOOGLE_ACCOUNT_LOCKED"
+
+    var parentPin: String
+        get() = prefs.getString(PARENT_PIN, "0000") ?: "0000"
+        set(value) = prefs.edit { putString(PARENT_PIN, value).apply() }
+
+    var studentKioskEnabled: Boolean
+        get() = prefs.getBoolean(STUDENT_KIOSK_ENABLED, false)
+        set(value) = prefs.edit { putBoolean(STUDENT_KIOSK_ENABLED, value).apply() }
+
+    var statusBarBlocked: Boolean
+        get() = prefs.getBoolean(STATUS_BAR_BLOCKED, true)
+        set(value) = prefs.edit { putBoolean(STATUS_BAR_BLOCKED, value).apply() }
+
+    var googleAccountLocked: Boolean
+        get() = prefs.getBoolean(GOOGLE_ACCOUNT_LOCKED, true)
+        set(value) = prefs.edit { putBoolean(GOOGLE_ACCOUNT_LOCKED, value).apply() }
 }

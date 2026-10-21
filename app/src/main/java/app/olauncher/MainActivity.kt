@@ -24,6 +24,7 @@ import androidx.navigation.findNavController
 import app.olauncher.data.Constants
 import app.olauncher.data.Prefs
 import app.olauncher.databinding.ActivityMainBinding
+import app.olauncher.helper.DevicePolicyHelper
 import app.olauncher.helper.getColorFromAttr
 import app.olauncher.helper.hasBeenDays
 import app.olauncher.helper.hasBeenHours
@@ -100,7 +101,11 @@ class MainActivity : AppCompatActivity() {
             prefs.firstOpen = false
             prefs.firstOpenTime = System.currentTimeMillis()
             viewModel.setDefaultClockApp()
-            viewModel.resetLauncherLiveData.call()
+            if (DevicePolicyHelper.isDeviceOwner(this)) {
+                DevicePolicyHelper.setDefaultLauncher(this)
+            } else {
+                viewModel.resetLauncherLiveData.call()
+            }
         }
 
         initObservers(viewModel)
@@ -133,6 +138,9 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         isResumed = true
+        if (DevicePolicyHelper.isDeviceOwner(this)) {
+            DevicePolicyHelper.setDefaultLauncher(this)
+        }
         viewModel.isPrivateSpaceToggling = false
         viewModel.getAppList()
     }
@@ -201,6 +209,10 @@ class MainActivity : AppCompatActivity() {
             openLauncherChooser(it)
         }
         viewModel.resetLauncherLiveData.observe(this) {
+            if (DevicePolicyHelper.isDeviceOwner(this)) {
+                DevicePolicyHelper.setDefaultLauncher(this)
+                return@observe
+            }
             if (isDefaultLauncher() || Build.VERSION.SDK_INT < Build.VERSION_CODES.Q)
                 resetLauncherViaFakeActivity()
             else

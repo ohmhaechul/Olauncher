@@ -118,3 +118,34 @@ fun Context.showMessageDialog(
     dialog.showRespectingStatusBar()
     return dialog
 }
+
+fun Context.showPinDialog(
+    title: String = "부모님 비밀번호 확인",
+    correctPin: String,
+    onSuccess: () -> Unit,
+): AlertDialog {
+    val input = android.widget.EditText(this).apply {
+        inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
+        hint = "PIN 번호 4자리"
+        gravity = android.view.Gravity.CENTER
+        setPadding(40, 30, 40, 30)
+    }
+    val dialog = AlertDialog.Builder(this)
+        .setTitle(title)
+        .setView(input)
+        .setPositiveButton(android.R.string.ok) { d, _ ->
+            if (input.text.toString() == correctPin) {
+                onSuccess()
+            } else {
+                android.widget.Toast.makeText(this, "비밀번호가 일치하지 않습니다.", android.widget.Toast.LENGTH_SHORT).show()
+            }
+            d.dismiss()
+        }
+        .setNegativeButton(android.R.string.cancel) { d, _ ->
+            d.dismiss()
+        }
+        .create()
+    dialog.show()
+    return dialog
+}
+
