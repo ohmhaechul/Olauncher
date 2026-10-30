@@ -88,7 +88,7 @@ suspend fun getAppsList(
                 if (isPrivateSpaceProfile(context, profile)) continue
                 for (app in launcherApps.getActivityList(null, profile)) {
                     val pkgName = app.applicationInfo.packageName
-                    if (isKiosk && (!DevicePolicyHelper.ALLOWED_USER_PACKAGES.contains(pkgName) || pkgName == "com.android.settings")) {
+                    if (isKiosk && (!DevicePolicyHelper.isPackageAllowed(context, pkgName) || pkgName == "com.android.settings")) {
                         continue
                     }
                     val appLabelShown = prefs.getAppRenameLabel(pkgName)

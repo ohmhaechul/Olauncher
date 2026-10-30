@@ -537,8 +537,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     private fun showAppList(flag: Int, rename: Boolean = false, includeHiddenApps: Boolean = false) {
         val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
-        if (isKiosk && flag == Constants.FLAG_LAUNCH_APP) {
-            // 피쳐폰 모드에서는 홈 화면에 이미 모든 6개 앱이 있으므로 앱스 화면(앱 서랍) 진입을 차단합니다.
+        if (isKiosk && flag == Constants.FLAG_LAUNCH_APP && !prefs.allowAppDrawerInKiosk) {
+            // 피쳐폰 모드에서 앱 서랍이 비활성화된 경우 진입을 차단합니다.
             return
         }
         viewModel.getAppList(includeHiddenApps)
@@ -660,7 +660,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             override fun onSwipeUp() {
                 super.onSwipeUp()
                 val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
-                if (!isKiosk) {
+                if (!isKiosk || prefs.allowAppDrawerInKiosk) {
                     showAppList(Constants.FLAG_LAUNCH_APP)
                 }
             }
@@ -723,7 +723,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             override fun onSwipeUp() {
                 super.onSwipeUp()
                 val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
-                if (!isKiosk) {
+                if (!isKiosk || prefs.allowAppDrawerInKiosk) {
                     showAppList(Constants.FLAG_LAUNCH_APP)
                 }
             }

@@ -179,11 +179,13 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
         val isDeviceOwner = DevicePolicyHelper.isDeviceOwner(context)
         val items = arrayOf(
             "1. 피쳐폰 정책 적용 (앱 숨김 & 제한)",
-            "2. 구글 계정 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
-            "3. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
-            "4. 부모님 PIN 변경",
-            "5. 안드로이드 전체 시스템 설정 열기",
-            "6. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
+            "2. 추가 허용 앱 관리 (사전, 지도, 인강 등) [${prefs.customAllowedPackages.size}개 허용됨]",
+            "3. 구글 계정 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
+            "4. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
+            "5. 앱 서랍(위로 밀어 앱 목록 보기) 토글 (현재: ${if (prefs.allowAppDrawerInKiosk) "허용됨" else "차단됨"})",
+            "6. 부모님 PIN 변경",
+            "7. 안드로이드 전체 시스템 설정 열기",
+            "8. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
         )
         AlertDialog.Builder(context)
             .setTitle("부모님 관리자 메뉴")
@@ -198,21 +200,34 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                         }
                     }
                     1 -> {
+                        if (isDeviceOwner) {
+                            showManageCustomAppsDialog(context)
+                        } else {
+                            context.showToast("Device Owner 권한이 필요합니다.")
+                        }
+                    }
+                    2 -> {
                         val currentLocked = prefs.googleAccountLocked
                         val newLocked = !currentLocked
                         prefs.googleAccountLocked = newLocked
                         DevicePolicyHelper.setAccountModificationAllowed(context, !newLocked)
                         context.showToast(if (newLocked) "구글 계정 추가/수정이 차단되었습니다." else "구글 계정 추가/수정이 허용되었습니다.")
                     }
-                    2 -> {
+                    3 -> {
                         val currentBlocked = prefs.statusBarBlocked
                         val newBlocked = !currentBlocked
                         prefs.statusBarBlocked = newBlocked
                         DevicePolicyHelper.setStatusBarDisabled(context, newBlocked)
                         context.showToast(if (newBlocked) "상단바 내리기가 차단되었습니다." else "상단바 내리기가 허용되었습니다.")
                     }
-                    3 -> showChangePinDialog()
                     4 -> {
+                        val currentDrawer = prefs.allowAppDrawerInKiosk
+                        val newDrawer = !currentDrawer
+                        prefs.allowAppDrawerInKiosk = newDrawer
+                        context.showToast(if (newDrawer) "앱 서랍(위로 밀기)이 허용되었습니다." else "앱 서랍(위로 밀기)이 차단되었습니다.")
+                    }
+                    5 -> showChangePinDialog()
+                    6 -> {
                         try {
                             if (isDeviceOwner) {
                                 DevicePolicyHelper.setSettingsAppHidden(context, false)
@@ -235,7 +250,7 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                             }
                         }
                     }
-                    5 -> {
+                    7 -> {
                         if (isDeviceOwner) {
                             DevicePolicyHelper.disableStudentKioskPolicies(context)
                             context.showToast("피쳐폰 정책이 해제되고 모든 앱이 복구되었습니다.")
@@ -244,6 +259,32 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                         }
                     }
                 }
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showManageCustomAppsDialog(context: Context) {
+        val apps = DevicePolicyHelper.getManageableApps(context)
+        if (apps.isEmpty()) {
+            context.showToast("추가로 허용할 수 있는 설치된 앱이 없습니다.")
+            return
+        }
+        val itemLabels = apps.map { it.label }.toTypedArray()
+        val checkedItems = apps.map { it.isAllowed }.toBooleanArray()
+
+        AlertDialog.Builder(context)
+            .setTitle("추가 허용 앱 관리 (다중 선택)")
+            .setMultiChoiceItems(itemLabels, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val selected = apps.filterIndexed { index, _ -> checkedItems[index] }
+                    .map { it.packageName }
+                    .toSet()
+                DevicePolicyHelper.setCustomAllowedPackages(context, selected)
+                viewModel.refreshHome(true)
+                context.showToast("${selected.size}개의 앱이 허용되었습니다.")
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()

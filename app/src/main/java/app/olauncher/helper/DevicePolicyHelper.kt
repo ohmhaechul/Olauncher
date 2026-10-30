@@ -19,7 +19,7 @@ import app.olauncher.listener.DeviceAdmin
 object DevicePolicyHelper {
     private const val TAG = "DevicePolicyHelper"
 
-    // 필수 피쳐폰 앱 카테고리별 패키지 후보군 (삼성 / 구글 기본)
+    // 필수 피쳐폰 앱 카테고리별 패키지 후보군 (삼성 / 구글 기본 + 삼성페이)
     val ALLOWED_USER_PACKAGES = setOf(
         // 전화
         "com.samsung.android.dialer",
@@ -42,9 +42,28 @@ object DevicePolicyHelper {
         // 갤러리
         "com.sec.android.gallery3d",
         "com.google.android.apps.photos",
+        // 삼성페이 / 삼성월렛 (기본 탑재)
+        "com.samsung.android.spay",
+        "com.samsung.android.spaymini",
+        "com.samsung.android.spayfw",
+        "com.samsung.android.rapproxy",
         // 설정 (시스템 제어용 - Olauncher 내부에서 PIN 보호)
         "com.android.settings",
     )
+
+    data class ManageableApp(
+        val label: String,
+        val packageName: String,
+        val isAllowed: Boolean
+    )
+
+    fun isPackageAllowed(context: Context, packageName: String): Boolean {
+        if (ALLOWED_USER_PACKAGES.contains(packageName) || packageName == context.packageName) {
+            return true
+        }
+        val prefs = Prefs(context)
+        return prefs.customAllowedPackages.contains(packageName)
+    }
 
     fun getAdminComponent(context: Context): ComponentName {
         return ComponentName(context, DeviceAdmin::class.java)
@@ -202,8 +221,8 @@ object DevicePolicyHelper {
         for (resolveInfo in resolveList) {
             val pkgName = resolveInfo.activityInfo.packageName
 
-            // Olauncher 본인이거나 허용된 6대 피쳐폰 기능(+설정)은 유지
-            if (ALLOWED_USER_PACKAGES.contains(pkgName) || pkgName == myPackage) {
+            // Olauncher 본인이거나 기본/동적 허용 앱은 유지
+            if (isPackageAllowed(context, pkgName)) {
                 try {
                     dpm.setApplicationHidden(admin, pkgName, false)
                 } catch (e: Exception) {
@@ -301,6 +320,7 @@ object DevicePolicyHelper {
         val clock = findFirstInstalledPackage(listOf("com.sec.android.app.clockpackage", "com.google.android.deskclock"))
         val camera = findFirstInstalledPackage(listOf("com.sec.android.app.camera", "com.android.camera"))
         val gallery = findFirstInstalledPackage(listOf("com.sec.android.gallery3d", "com.google.android.apps.photos"))
+        val spay = findFirstInstalledPackage(listOf("com.samsung.android.spay", "com.samsung.android.spaymini"))
 
         prefs.homeAppsNum = 6
         dialer?.let {
@@ -327,6 +347,126 @@ object DevicePolicyHelper {
             prefs.appName6 = getAppName(it)
             prefs.appPackage6 = it
         }
+        if (spay != null) {
+            prefs.appName7 = getAppName(spay)
+            prefs.appPackage7 = spay
+            prefs.homeAppsNum = 7
+        } else {
+            prefs.appName7 = ""
+            prefs.appPackage7 = ""
+            prefs.homeAppsNum = 6
+        }
+        syncHomeApps(context)
+    }
+
+    fun syncHomeApps(context: Context) {
+        val prefs = Prefs(context)
+        val pm = context.packageManager
+        val customList = prefs.customAllowedPackages.toList()
+
+        val nextSlot = if (prefs.appPackage7.isNotEmpty()) 8 else 7
+        if (customList.isNotEmpty()) {
+            val pkg = customList[0]
+            val appName = try {
+                val appInfo = pm.getApplicationInfo(pkg, 0)
+                pm.getApplicationLabel(appInfo).toString()
+            } catch (e: Exception) {
+                pkg
+            }
+            if (nextSlot == 8) {
+                prefs.appName8 = appName
+                prefs.appPackage8 = pkg
+                prefs.homeAppsNum = 8
+            } else {
+                prefs.appName7 = appName
+                prefs.appPackage7 = pkg
+                prefs.homeAppsNum = 7
+            }
+        } else {
+            if (nextSlot == 8) {
+                prefs.appName8 = ""
+                prefs.appPackage8 = ""
+                prefs.homeAppsNum = 7
+            } else {
+                prefs.appName7 = ""
+                prefs.appPackage7 = ""
+                prefs.homeAppsNum = 6
+            }
+        }
+    }
+
+    fun getManageableApps(context: Context): List<ManageableApp> {
+        val pm = context.packageManager
+        val prefs = Prefs(context)
+        val customAllowed = prefs.customAllowedPackages
+
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS
+        } else {
+            0
+        }
+        val resolveList = pm.queryIntentActivities(launcherIntent, flags)
+        val result = mutableListOf<ManageableApp>()
+        val seenPackages = mutableSetOf<String>()
+
+        for (info in resolveList) {
+            val pkg = info.activityInfo.packageName
+            if (pkg == context.packageName || pkg == "com.sec.android.app.launcher" || pkg == "com.android.settings") continue
+            if (ALLOWED_USER_PACKAGES.contains(pkg)) continue // 기본 필수 앱(전화, 문자, 삼성페이 등)은 제외
+            if (!seenPackages.add(pkg)) continue
+
+            val label = try {
+                info.loadLabel(pm).toString()
+            } catch (e: Exception) {
+                pkg
+            }
+            result.add(
+                ManageableApp(
+                    label = label,
+                    packageName = pkg,
+                    isAllowed = customAllowed.contains(pkg)
+                )
+            )
+        }
+        return result.sortedBy { it.label }
+    }
+
+    fun setCustomAllowedPackages(context: Context, newAllowedSet: Set<String>) {
+        val prefs = Prefs(context)
+        val oldAllowed = prefs.customAllowedPackages
+        prefs.customAllowedPackages = newAllowedSet
+
+        if (isDeviceOwner(context)) {
+            val dpm = getDpm(context)
+            val admin = getAdminComponent(context)
+
+            // 새로 허용된 앱 unhide
+            for (pkg in newAllowedSet) {
+                try {
+                    dpm.setApplicationHidden(admin, pkg, false)
+                    Log.d(TAG, "Unhid custom allowed package: $pkg")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to unhide: $pkg", e)
+                }
+            }
+
+            // 해제된 앱 다시 hide
+            for (pkg in oldAllowed) {
+                if (!newAllowedSet.contains(pkg)) {
+                    try {
+                        dpm.setApplicationHidden(admin, pkg, true)
+                        Log.d(TAG, "Hid custom package: $pkg")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to hide: $pkg", e)
+                    }
+                }
+            }
+        }
+
+        syncHomeApps(context)
     }
 
     /**

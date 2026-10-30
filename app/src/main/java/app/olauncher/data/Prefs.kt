@@ -649,6 +649,8 @@ class Prefs(context: Context) {
     private val STUDENT_KIOSK_ENABLED = "STUDENT_KIOSK_ENABLED"
     private val STATUS_BAR_BLOCKED = "STATUS_BAR_BLOCKED"
     private val GOOGLE_ACCOUNT_LOCKED = "GOOGLE_ACCOUNT_LOCKED"
+    private val CUSTOM_ALLOWED_PACKAGES = "CUSTOM_ALLOWED_PACKAGES"
+    private val ALLOW_APP_DRAWER_IN_KIOSK = "ALLOW_APP_DRAWER_IN_KIOSK"
 
     var parentPin: String
         get() = prefs.getString(PARENT_PIN, "0000") ?: "0000"
@@ -665,4 +667,12 @@ class Prefs(context: Context) {
     var googleAccountLocked: Boolean
         get() = prefs.getBoolean(GOOGLE_ACCOUNT_LOCKED, true)
         set(value) = prefs.edit { putBoolean(GOOGLE_ACCOUNT_LOCKED, value).apply() }
+
+    var customAllowedPackages: Set<String>
+        get() = prefs.getStringSet(CUSTOM_ALLOWED_PACKAGES, emptySet()) ?: emptySet()
+        set(value) = prefs.edit { putStringSet(CUSTOM_ALLOWED_PACKAGES, value).apply() }
+
+    var allowAppDrawerInKiosk: Boolean
+        get() = prefs.getBoolean(ALLOW_APP_DRAWER_IN_KIOSK, false)
+        set(value) = prefs.edit { putBoolean(ALLOW_APP_DRAWER_IN_KIOSK, value).apply() }
 }
