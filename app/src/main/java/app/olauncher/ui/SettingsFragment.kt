@@ -180,12 +180,13 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
         val items = arrayOf(
             "1. 피쳐폰 정책 적용 (앱 숨김 & 제한)",
             "2. 추가 허용 앱 관리 (사전, 지도, 인강 등) [${prefs.customAllowedPackages.size}개 허용됨]",
-            "3. 구글 계정 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
-            "4. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
-            "5. 앱 서랍(위로 밀어 앱 목록 보기) 토글 (현재: ${if (prefs.allowAppDrawerInKiosk) "허용됨" else "차단됨"})",
-            "6. 부모님 PIN 변경",
-            "7. 안드로이드 전체 시스템 설정 열기",
-            "8. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
+            "3. 계정(삼성/구글) 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
+            "4. 계정 관리 열기 (삼성/구글 계정 로그인)",
+            "5. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
+            "6. 앱 서랍(위로 밀어 앱 목록 보기) 토글 (현재: ${if (prefs.allowAppDrawerInKiosk) "허용됨" else "차단됨"})",
+            "7. 부모님 PIN 변경",
+            "8. 안드로이드 전체 시스템 설정 열기",
+            "9. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
         )
         AlertDialog.Builder(context)
             .setTitle("부모님 관리자 메뉴")
@@ -211,23 +212,36 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                         val newLocked = !currentLocked
                         prefs.googleAccountLocked = newLocked
                         DevicePolicyHelper.setAccountModificationAllowed(context, !newLocked)
-                        context.showToast(if (newLocked) "구글 계정 추가/수정이 차단되었습니다." else "구글 계정 추가/수정이 허용되었습니다.")
+                        context.showToast(if (newLocked) "계정(삼성/구글) 추가/삭제가 차단되었습니다." else "계정(삼성/구글) 추가/삭제가 허용되었습니다.")
                     }
                     3 -> {
+                        try {
+                            if (prefs.googleAccountLocked) {
+                                context.showToast("계정 추가가 차단되어 있습니다. 먼저 3번을 눌러 허용해 주세요.")
+                            }
+                            val intent = Intent(Settings.ACTION_SYNC_SETTINGS).apply {
+                                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            }
+                            startActivity(intent)
+                        } catch (e: Exception) {
+                            context.showToast("계정 설정 열기 실패: ${e.message}")
+                        }
+                    }
+                    4 -> {
                         val currentBlocked = prefs.statusBarBlocked
                         val newBlocked = !currentBlocked
                         prefs.statusBarBlocked = newBlocked
                         DevicePolicyHelper.setStatusBarDisabled(context, newBlocked)
                         context.showToast(if (newBlocked) "상단바 내리기가 차단되었습니다." else "상단바 내리기가 허용되었습니다.")
                     }
-                    4 -> {
+                    5 -> {
                         val currentDrawer = prefs.allowAppDrawerInKiosk
                         val newDrawer = !currentDrawer
                         prefs.allowAppDrawerInKiosk = newDrawer
                         context.showToast(if (newDrawer) "앱 서랍(위로 밀기)이 허용되었습니다." else "앱 서랍(위로 밀기)이 차단되었습니다.")
                     }
-                    5 -> showChangePinDialog()
-                    6 -> {
+                    6 -> showChangePinDialog()
+                    7 -> {
                         try {
                             if (isDeviceOwner) {
                                 DevicePolicyHelper.setSettingsAppHidden(context, false)
@@ -250,7 +264,7 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                             }
                         }
                     }
-                    7 -> {
+                    8 -> {
                         if (isDeviceOwner) {
                             DevicePolicyHelper.disableStudentKioskPolicies(context)
                             context.showToast("피쳐폰 정책이 해제되고 모든 앱이 복구되었습니다.")
