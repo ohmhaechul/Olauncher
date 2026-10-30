@@ -569,7 +569,9 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
     }
 
     private fun toggleLockMode() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+        if (DevicePolicyHelper.isDeviceOwner(requireContext())) {
+            prefs.lockModeOn = !prefs.lockModeOn
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
             if (!prefs.lockModeOn && !isAccessServiceEnabled(requireContext())) {
                 showAccessibilityDialog()
                 return
@@ -786,17 +788,14 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
     // }
 
     private fun populateLockSettings() {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            binding.toggleLock.text = getString(
-                if (prefs.lockModeOn && isAccessServiceEnabled(requireContext())) R.string.on
-                else R.string.off
-            )
+        val isLocked = if (DevicePolicyHelper.isDeviceOwner(requireContext())) {
+            prefs.lockModeOn
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            prefs.lockModeOn && isAccessServiceEnabled(requireContext())
         } else {
-            binding.toggleLock.text = getString(
-                if (prefs.lockModeOn) R.string.on
-                else R.string.off
-            )
+            prefs.lockModeOn
         }
+        binding.toggleLock.text = getString(if (isLocked) R.string.on else R.string.off)
     }
 
     private fun populateSwipeApps() {

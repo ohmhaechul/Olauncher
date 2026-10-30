@@ -36,6 +36,7 @@ import app.olauncher.helper.expandNotificationDrawer
 import app.olauncher.helper.getChangedAppTheme
 import app.olauncher.helper.getUserHandleFromString
 import app.olauncher.helper.isPackageInstalled
+import app.olauncher.helper.isAccessServiceEnabled
 import app.olauncher.helper.openAlarmApp
 import app.olauncher.helper.openCalendar
 import app.olauncher.helper.openCameraApp
@@ -92,8 +93,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             R.id.lock -> {}
             // Home button for recents feature disabled
             // R.id.recents -> {}
-            R.id.clock -> openClockApp()
-            R.id.date -> openCalendarApp()
+            R.id.clock -> {}
+            R.id.date -> {}
             R.id.setDefaultLauncher -> viewModel.resetLauncherLiveData.call()
             R.id.tvScreenTime -> openScreenTimeDigitalWellbeing()
 
@@ -142,19 +143,8 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             R.id.homeApp6 -> showAppList(Constants.FLAG_SET_HOME_APP_6, prefs.appName6.isNotEmpty(), true)
             R.id.homeApp7 -> showAppList(Constants.FLAG_SET_HOME_APP_7, prefs.appName7.isNotEmpty(), true)
             R.id.homeApp8 -> showAppList(Constants.FLAG_SET_HOME_APP_8, prefs.appName8.isNotEmpty(), true)
-            R.id.clock -> {
-                showAppList(Constants.FLAG_SET_CLOCK_APP)
-                prefs.clockAppPackage = ""
-                prefs.clockAppClassName = ""
-                prefs.clockAppUser = ""
-            }
-
-            R.id.date -> {
-                showAppList(Constants.FLAG_SET_CALENDAR_APP)
-                prefs.calendarAppPackage = ""
-                prefs.calendarAppClassName = ""
-                prefs.calendarAppUser = ""
-            }
+            R.id.clock -> false
+            R.id.date -> false
 
             R.id.tvScreenTime -> {
                 showAppList(Constants.FLAG_SET_SCREEN_TIME_APP)
@@ -228,10 +218,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         binding.lock.setOnClickListener(this)
         // Home button for recents feature disabled
         // binding.recents.setOnClickListener(this)
-        binding.clock.setOnClickListener(this)
-        binding.date.setOnClickListener(this)
-        binding.clock.setOnLongClickListener(this)
-        binding.date.setOnLongClickListener(this)
+        binding.clock.isClickable = false
+        binding.date.isClickable = false
+        binding.clock.isLongClickable = false
+        binding.date.isLongClickable = false
         binding.setDefaultLauncher.setOnClickListener(this)
         binding.setDefaultLauncher.setOnLongClickListener(this)
         binding.tvScreenTime.setOnClickListener(this)
@@ -695,10 +685,15 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             override fun onDoubleClick() {
                 super.onDoubleClick()
                 if (!prefs.lockModeOn) return
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-                    binding.lock.performClick()
-                else
+                if (DevicePolicyHelper.isDeviceOwner(requireContext())) {
                     lockPhone()
+                } else if (isAccessServiceEnabled(requireContext())) {
+                    binding.lock.performClick()
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    binding.lock.performClick()
+                } else {
+                    lockPhone()
+                }
             }
 
             override fun onClick() {

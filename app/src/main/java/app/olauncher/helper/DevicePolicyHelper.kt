@@ -145,6 +145,9 @@ object DevicePolicyHelper {
             // 8. 런처 홈 화면 6개 앱 기본 구성
             setupDefaultHomeApps(context)
 
+            // 9. 화면 더블탭 잠금 기본 활성화
+            prefs.lockModeOn = true
+
             prefs.studentKioskEnabled = true
             Log.i(TAG, "Successfully applied student kiosk policies safely!")
         } catch (e: Exception) {
