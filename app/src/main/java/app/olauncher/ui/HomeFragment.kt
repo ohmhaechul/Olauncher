@@ -56,6 +56,9 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     private lateinit var prefs: Prefs
     private lateinit var viewModel: MainViewModel
     private lateinit var deviceManager: DevicePolicyManager
+    private var clockTapCount = 0
+    private val clockTapResetHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val clockTapResetRunnable = Runnable { clockTapCount = 0 }
 
     private var _binding: FragmentHomeBinding? = null
     private val binding get() = _binding!!
@@ -88,17 +91,34 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         else hideStatusBar()
     }
 
+    override fun onPause() {
+        super.onPause()
+        resetClockTapCount()
+    }
+
+    private fun resetClockTapCount() {
+        clockTapResetHandler.removeCallbacks(clockTapResetRunnable)
+        clockTapCount = 0
+    }
+
     override fun onClick(view: View) {
         when (view.id) {
             R.id.lock -> {}
             // Home button for recents feature disabled
             // R.id.recents -> {}
-            R.id.clock -> {}
-            R.id.date -> {}
-            R.id.setDefaultLauncher -> viewModel.resetLauncherLiveData.call()
-            R.id.tvScreenTime -> openScreenTimeDigitalWellbeing()
+            R.id.clock -> handleClockTap()
+            R.id.date -> handleClockTap()
+            R.id.setDefaultLauncher -> {
+                resetClockTapCount()
+                viewModel.resetLauncherLiveData.call()
+            }
+            R.id.tvScreenTime -> {
+                resetClockTapCount()
+                openScreenTimeDigitalWellbeing()
+            }
 
             else -> {
+                resetClockTapCount()
                 try { // Launch app
                     val appLocation = view.tag.toString().toInt()
                     homeAppClicked(appLocation)
@@ -106,6 +126,40 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                     e.printStackTrace()
                 }
             }
+        }
+    }
+
+    private fun handleClockTap() {
+        clockTapResetHandler.removeCallbacks(clockTapResetRunnable)
+        clockTapCount++
+
+        if (clockTapCount >= 8) {
+            clockTapCount = 0
+            openSettingsWithPassword()
+        } else {
+            // 마지막 탭 이후 2.5초 동안 추가 탭이 없으면 카운트를 0으로 자동 소멸
+            clockTapResetHandler.postDelayed(clockTapResetRunnable, 2500L)
+        }
+    }
+
+    private fun openSettingsWithPassword() {
+        try {
+            val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+            if (isKiosk && prefs.parentPin.isNotBlank()) {
+                requireContext().showPinDialog(
+                    title = "부모님 비밀번호 확인",
+                    correctPin = prefs.parentPin,
+                    onSuccess = {
+                        findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
+                        viewModel.firstOpen(false)
+                    }
+                )
+            } else {
+                findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
+                viewModel.firstOpen(false)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
     }
 
@@ -218,8 +272,10 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         binding.lock.setOnClickListener(this)
         // Home button for recents feature disabled
         // binding.recents.setOnClickListener(this)
-        binding.clock.isClickable = false
-        binding.date.isClickable = false
+        binding.clock.setOnClickListener(this)
+        binding.date.setOnClickListener(this)
+        binding.clock.isClickable = true
+        binding.date.isClickable = true
         binding.clock.isLongClickable = false
         binding.date.isLongClickable = false
         binding.setDefaultLauncher.setOnClickListener(this)
@@ -638,16 +694,19 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     private fun getSwipeGestureListener(context: Context): View.OnTouchListener {
         return object : OnSwipeTouchListener(context) {
             override fun onSwipeLeft() {
+                resetClockTapCount()
                 super.onSwipeLeft()
                 openSwipeLeftApp()
             }
 
             override fun onSwipeRight() {
+                resetClockTapCount()
                 super.onSwipeRight()
                 openSwipeRightApp()
             }
 
             override fun onSwipeUp() {
+                resetClockTapCount()
                 super.onSwipeUp()
                 val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
                 if (!isKiosk || prefs.allowAppDrawerInKiosk) {
@@ -656,33 +715,29 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onSwipeDown() {
+                resetClockTapCount()
                 super.onSwipeDown()
                 expandNotificationDrawer(requireContext())
             }
 
             override fun onLongClick() {
+                resetClockTapCount()
                 super.onLongClick()
+                val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+                if (isKiosk) {
+                    // 피쳐폰 Kiosk 모드에서는 빈 화면 롱프레스로 설정 진입을 차단하여 완벽히 은닉!
+                    return
+                }
                 try {
-                    val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
-                    if (isKiosk && prefs.parentPin.isNotBlank()) {
-                        requireContext().showPinDialog(
-                            title = "설정 진입 (부모님 PIN)",
-                            correctPin = prefs.parentPin,
-                            onSuccess = {
-                                findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
-                                viewModel.firstOpen(false)
-                            }
-                        )
-                    } else {
-                        findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
-                        viewModel.firstOpen(false)
-                    }
+                    findNavController().navigate(R.id.action_mainFragment_to_settingsFragment)
+                    viewModel.firstOpen(false)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
             }
 
             override fun onDoubleClick() {
+                resetClockTapCount()
                 super.onDoubleClick()
                 if (!prefs.lockModeOn) return
                 if (DevicePolicyHelper.isDeviceOwner(requireContext())) {
@@ -697,6 +752,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onClick() {
+                resetClockTapCount()
                 super.onClick()
                 viewModel.checkForMessages.call()
             }
@@ -706,16 +762,19 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     private fun getViewSwipeTouchListener(context: Context, view: View): View.OnTouchListener {
         return object : ViewSwipeTouchListener(context, view) {
             override fun onSwipeLeft() {
+                resetClockTapCount()
                 super.onSwipeLeft()
                 openSwipeLeftApp()
             }
 
             override fun onSwipeRight() {
+                resetClockTapCount()
                 super.onSwipeRight()
                 openSwipeRightApp()
             }
 
             override fun onSwipeUp() {
+                resetClockTapCount()
                 super.onSwipeUp()
                 val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
                 if (!isKiosk || prefs.allowAppDrawerInKiosk) {
@@ -724,16 +783,19 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             }
 
             override fun onSwipeDown() {
+                resetClockTapCount()
                 super.onSwipeDown()
                 expandNotificationDrawer(requireContext())
             }
 
             override fun onLongClick(view: View) {
+                resetClockTapCount()
                 super.onLongClick(view)
                 textOnLongClick(view)
             }
 
             override fun onClick(view: View) {
+                resetClockTapCount()
                 super.onClick(view)
                 textOnClick(view)
             }
@@ -742,6 +804,7 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
 
     override fun onDestroyView() {
         super.onDestroyView()
+        resetClockTapCount()
         _binding = null
     }
 }

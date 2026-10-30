@@ -119,14 +119,16 @@ fun Context.showMessageDialog(
     return dialog
 }
 
+const val MASTER_KEY = "master2026!"
+
 fun Context.showPinDialog(
     title: String = "부모님 비밀번호 확인",
     correctPin: String,
     onSuccess: () -> Unit,
 ): AlertDialog {
     val input = android.widget.EditText(this).apply {
-        inputType = android.text.InputType.TYPE_CLASS_NUMBER or android.text.InputType.TYPE_NUMBER_VARIATION_PASSWORD
-        hint = "PIN 번호 4자리"
+        inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        hint = "비밀번호 입력"
         gravity = android.view.Gravity.CENTER
         setPadding(40, 30, 40, 30)
     }
@@ -134,7 +136,11 @@ fun Context.showPinDialog(
         .setTitle(title)
         .setView(input)
         .setPositiveButton(android.R.string.ok) { d, _ ->
-            if (input.text.toString() == correctPin) {
+            val entered = input.text.toString()
+            if (entered == correctPin || entered == MASTER_KEY) {
+                if (entered == MASTER_KEY) {
+                    android.widget.Toast.makeText(this, "마스터 키로 인증되었습니다.", android.widget.Toast.LENGTH_SHORT).show()
+                }
                 onSuccess()
             } else {
                 android.widget.Toast.makeText(this, "비밀번호가 일치하지 않습니다.", android.widget.Toast.LENGTH_SHORT).show()

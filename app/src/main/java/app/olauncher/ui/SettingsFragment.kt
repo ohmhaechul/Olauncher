@@ -184,7 +184,7 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
             "4. 계정 관리 열기 (삼성/구글 계정 로그인)",
             "5. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
             "6. 앱 서랍(위로 밀어 앱 목록 보기) 토글 (현재: ${if (prefs.allowAppDrawerInKiosk) "허용됨" else "차단됨"})",
-            "7. 부모님 PIN 변경",
+            "7. 부모님 비밀번호 변경",
             "8. 안드로이드 전체 시스템 설정 열기",
             "9. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
         )
@@ -306,21 +306,21 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
 
     private fun showChangePinDialog() {
         val input = EditText(requireContext()).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER or InputType.TYPE_NUMBER_VARIATION_PASSWORD
-            hint = "새 PIN 번호 4자리"
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
+            hint = "새 비밀번호 (4자리 이상, 영문/숫자/특수문자)"
             gravity = Gravity.CENTER
             setPadding(40, 30, 40, 30)
         }
         AlertDialog.Builder(requireContext())
-            .setTitle("부모님 PIN 변경")
+            .setTitle("부모님 비밀번호 변경")
             .setView(input)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 val newPin = input.text.toString().trim()
                 if (newPin.length >= 4) {
                     prefs.parentPin = newPin
-                    requireContext().showToast("PIN이 변경되었습니다.")
+                    requireContext().showToast("비밀번호가 변경되었습니다.")
                 } else {
-                    requireContext().showToast("PIN은 최소 4자리여야 합니다.")
+                    requireContext().showToast("비밀번호는 최소 4자리 이상이어야 합니다.")
                 }
             }
             .setNegativeButton(android.R.string.cancel, null)
