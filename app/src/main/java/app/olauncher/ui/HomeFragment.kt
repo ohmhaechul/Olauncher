@@ -195,7 +195,14 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             R.id.homeApp4 -> showAppList(Constants.FLAG_SET_HOME_APP_4, prefs.appName4.isNotEmpty(), true)
             R.id.homeApp5 -> showAppList(Constants.FLAG_SET_HOME_APP_5, prefs.appName5.isNotEmpty(), true)
             R.id.homeApp6 -> showAppList(Constants.FLAG_SET_HOME_APP_6, prefs.appName6.isNotEmpty(), true)
-            R.id.homeApp7 -> showAppList(Constants.FLAG_SET_HOME_APP_7, prefs.appName7.isNotEmpty(), true)
+            R.id.homeApp7 -> {
+                if (prefs.appPackage7 == DevicePolicyHelper.PACKAGE_MORE_APPS) {
+                    showMoreAppsBottomSheet()
+                    true
+                } else {
+                    showAppList(Constants.FLAG_SET_HOME_APP_7, prefs.appName7.isNotEmpty(), true)
+                }
+            }
             R.id.homeApp8 -> showAppList(Constants.FLAG_SET_HOME_APP_8, prefs.appName8.isNotEmpty(), true)
             R.id.clock -> false
             R.id.date -> false
@@ -362,6 +369,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     private fun populateHomeScreen(appCountUpdated: Boolean) {
+        val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
+        if (isKiosk) {
+            DevicePolicyHelper.syncHomeApps(requireContext())
+        }
+
         if (appCountUpdated) hideHomeApps()
         populateDateTime()
 
@@ -465,6 +477,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         }
 
         // Regular app check
+        if (packageName == DevicePolicyHelper.PACKAGE_MORE_APPS) {
+            textView.text = appName
+            return true
+        }
+
         if (isPackageInstalled(requireContext(), packageName, userString)) {
             textView.text = appName
             return true
@@ -545,6 +562,11 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
     }
 
     private fun homeAppClicked(location: Int) {
+        val pkg = prefs.getAppPackage(location)
+        if (pkg == DevicePolicyHelper.PACKAGE_MORE_APPS) {
+            showMoreAppsBottomSheet()
+            return
+        }
         launchAppOrShortcut(
             appName = prefs.getAppName(location),
             packageName = prefs.getAppPackage(location),
@@ -553,6 +575,106 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             isShortcut = prefs.getIsShortcut(location),
             userString = prefs.getAppUser(location)
         )
+    }
+
+    private fun showMoreAppsBottomSheet() {
+        val extraApps = DevicePolicyHelper.getExtraAppsList(requireContext())
+        if (extraApps.isEmpty()) {
+            requireContext().showToast("추가로 허용된 앱이 없습니다.")
+            return
+        }
+
+        val context = requireContext()
+        val bottomSheet = com.google.android.material.bottomsheet.BottomSheetDialog(context)
+
+        val rootLayout = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+            val bgDrawable = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadii = floatArrayOf(
+                    20.dpToPx().toFloat(), 20.dpToPx().toFloat(),
+                    20.dpToPx().toFloat(), 20.dpToPx().toFloat(),
+                    0f, 0f, 0f, 0f
+                )
+                setColor(android.graphics.Color.parseColor("#18181A"))
+            }
+            background = bgDrawable
+            setPadding(24.dpToPx(), 16.dpToPx(), 24.dpToPx(), 32.dpToPx())
+        }
+
+        // 상단 드래그 핸들 (미니멀 바)
+        val handleBar = View(context).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(36.dpToPx(), 4.dpToPx()).apply {
+                gravity = android.view.Gravity.CENTER_HORIZONTAL
+                bottomMargin = 16.dpToPx()
+            }
+            val handleDrawable = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+                cornerRadius = 2.dpToPx().toFloat()
+                setColor(android.graphics.Color.parseColor("#555558"))
+            }
+            background = handleDrawable
+        }
+        rootLayout.addView(handleBar)
+
+        // 타이틀
+        val titleView = android.widget.TextView(context).apply {
+            text = "기타 앱"
+            textSize = 20f
+            setTextColor(android.graphics.Color.WHITE)
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(8.dpToPx(), 0, 8.dpToPx(), 12.dpToPx())
+        }
+        rootLayout.addView(titleView)
+
+        // 앱 목록을 담을 스크롤뷰
+        val scrollView = androidx.core.widget.NestedScrollView(context).apply {
+            layoutParams = android.widget.LinearLayout.LayoutParams(
+                android.widget.LinearLayout.LayoutParams.MATCH_PARENT,
+                android.widget.LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        val listContainer = android.widget.LinearLayout(context).apply {
+            orientation = android.widget.LinearLayout.VERTICAL
+        }
+
+        val typedValue = android.util.TypedValue()
+        context.theme.resolveAttribute(android.R.attr.selectableItemBackground, typedValue, true)
+        val selectableBackground = typedValue.resourceId
+
+        for (app in extraApps) {
+            val appItemView = android.widget.TextView(context).apply {
+                text = app.label
+                textSize = 18f
+                setTextColor(android.graphics.Color.parseColor("#EAEAEA"))
+                setPadding(12.dpToPx(), 16.dpToPx(), 12.dpToPx(), 16.dpToPx())
+                setBackgroundResource(selectableBackground)
+                isClickable = true
+                isFocusable = true
+                setOnClickListener {
+                    try {
+                        val launchIntent = DevicePolicyHelper.getAppLaunchIntent(context, app.packageName)
+                        if (launchIntent != null) {
+                            startActivity(launchIntent)
+                        } else {
+                            context.showToast("앱을 실행할 수 없습니다: ${app.label}")
+                        }
+                    } catch (e: Exception) {
+                        context.showToast("실행 오류: ${e.message}")
+                    }
+                    bottomSheet.dismiss()
+                }
+            }
+            listContainer.addView(appItemView)
+        }
+
+        scrollView.addView(listContainer)
+        rootLayout.addView(scrollView)
+
+        bottomSheet.setContentView(rootLayout)
+        bottomSheet.window?.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)?.background = null
+        bottomSheet.show()
     }
 
     private fun openSwipeRightApp() {

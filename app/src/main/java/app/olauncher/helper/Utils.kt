@@ -199,6 +199,7 @@ private fun upgradeHiddenApps(prefs: Prefs) {
 }
 
 fun isPackageInstalled(context: Context, packageName: String, userString: String): Boolean {
+    if (packageName == DevicePolicyHelper.PACKAGE_MORE_APPS) return true
     val launcher = context.getSystemService(Context.LAUNCHER_APPS_SERVICE) as LauncherApps
     val activityInfo = launcher.getActivityList(packageName, getUserHandleFromString(context, userString))
     if (activityInfo.isNotEmpty()) return true

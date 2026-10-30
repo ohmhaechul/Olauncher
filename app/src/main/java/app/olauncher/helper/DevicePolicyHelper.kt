@@ -19,6 +19,13 @@ import app.olauncher.listener.DeviceAdmin
 object DevicePolicyHelper {
     private const val TAG = "DevicePolicyHelper"
 
+    const val PACKAGE_MORE_APPS = "app.olauncher.more_apps"
+
+    data class ExtraAppItem(
+        val label: String,
+        val packageName: String
+    )
+
     // 필수 피쳐폰 앱 카테고리별 패키지 후보군 (삼성 / 구글 기본 + 삼성페이)
     val ALLOWED_USER_PACKAGES = setOf(
         // 전화
@@ -323,7 +330,6 @@ object DevicePolicyHelper {
         val clock = findFirstInstalledPackage(listOf("com.sec.android.app.clockpackage", "com.google.android.deskclock"))
         val camera = findFirstInstalledPackage(listOf("com.sec.android.app.camera", "com.android.camera"))
         val gallery = findFirstInstalledPackage(listOf("com.sec.android.gallery3d", "com.google.android.apps.photos"))
-        val spay = findFirstInstalledPackage(listOf("com.samsung.android.spay", "com.samsung.android.spaymini"))
 
         prefs.homeAppsNum = 6
         dialer?.let {
@@ -350,52 +356,111 @@ object DevicePolicyHelper {
             prefs.appName6 = getAppName(it)
             prefs.appPackage6 = it
         }
-        if (spay != null) {
-            prefs.appName7 = getAppName(spay)
-            prefs.appPackage7 = spay
-            prefs.homeAppsNum = 7
-        } else {
-            prefs.appName7 = ""
-            prefs.appPackage7 = ""
-            prefs.homeAppsNum = 6
-        }
+
         syncHomeApps(context)
+    }
+
+    fun getExtraAppsList(context: Context): List<ExtraAppItem> {
+        val pm = context.packageManager
+        val prefs = Prefs(context)
+        val result = mutableListOf<ExtraAppItem>()
+
+        // 1. 삼성페이 (Samsung Wallet) 확인
+        val spayCandidates = listOf(
+            "com.samsung.android.spay",
+            "com.samsung.android.spaymini"
+        )
+        for (pkg in spayCandidates) {
+            try {
+                val info = pm.getApplicationInfo(pkg, 0)
+                val label = pm.getApplicationLabel(info).toString()
+                result.add(ExtraAppItem(label, pkg))
+                break
+            } catch (e: Exception) {
+                // 미설치
+            }
+        }
+
+        // 2. 부모님이 추가 허용한 앱들
+        for (pkg in prefs.customAllowedPackages) {
+            if (result.any { it.packageName == pkg }) continue
+            try {
+                val info = pm.getApplicationInfo(pkg, 0)
+                val label = pm.getApplicationLabel(info).toString()
+                result.add(ExtraAppItem(label, pkg))
+            } catch (e: Exception) {
+                // Ignore
+            }
+        }
+
+        // 삼성페이를 맨 위에 두고, 나머지는 가나다순 정렬
+        return result.sortedWith(compareBy({ if (it.packageName.contains("spay")) 0 else 1 }, { it.label }))
     }
 
     fun syncHomeApps(context: Context) {
         val prefs = Prefs(context)
-        val pm = context.packageManager
-        val customList = prefs.customAllowedPackages.toList()
+        val extraApps = getExtraAppsList(context)
 
-        val nextSlot = if (prefs.appPackage7.isNotEmpty()) 8 else 7
-        if (customList.isNotEmpty()) {
-            val pkg = customList[0]
-            val appName = try {
-                val appInfo = pm.getApplicationInfo(pkg, 0)
-                pm.getApplicationLabel(appInfo).toString()
-            } catch (e: Exception) {
-                pkg
-            }
-            if (nextSlot == 8) {
-                prefs.appName8 = appName
-                prefs.appPackage8 = pkg
-                prefs.homeAppsNum = 8
-            } else {
-                prefs.appName7 = appName
-                prefs.appPackage7 = pkg
-                prefs.homeAppsNum = 7
-            }
+        if (extraApps.isNotEmpty()) {
+            prefs.appName7 = "기타 앱"
+            prefs.appPackage7 = PACKAGE_MORE_APPS
+            prefs.appName8 = ""
+            prefs.appPackage8 = ""
+            prefs.homeAppsNum = 7
         } else {
-            if (nextSlot == 8) {
-                prefs.appName8 = ""
-                prefs.appPackage8 = ""
-                prefs.homeAppsNum = 7
-            } else {
-                prefs.appName7 = ""
-                prefs.appPackage7 = ""
-                prefs.homeAppsNum = 6
+            prefs.appName7 = ""
+            prefs.appPackage7 = ""
+            prefs.appName8 = ""
+            prefs.appPackage8 = ""
+            prefs.homeAppsNum = 6
+        }
+    }
+
+    fun getAppLaunchIntent(context: Context, packageName: String): Intent? {
+        val pm = context.packageManager
+
+        // 1. 표준 안드로이드 런처 인텐트 시도
+        val standardIntent = pm.getLaunchIntentForPackage(packageName)
+        if (standardIntent != null) {
+            return standardIntent
+        }
+
+        // 2. 특수 시스템 앱(삼성 날씨 등)을 위한 폴백 인텐트
+        if (packageName == "com.sec.android.daemonapp") {
+            try {
+                return Intent().apply {
+                    component = ComponentName("com.sec.android.daemonapp", "com.sec.android.daemonapp.app.MainActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            } catch (e: Exception) {
+                // Ignore
             }
         }
+
+        // 3. 일반적인 폴백 탐색: 패키지 내 액티비티 중 exported 메인 액티비티 탐색
+        try {
+            val pkgInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageInfo(packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_ACTIVITIES.toLong()))
+            } else {
+                pm.getPackageInfo(packageName, PackageManager.GET_ACTIVITIES)
+            }
+            val activities = pkgInfo.activities ?: return null
+
+            val candidate = activities.firstOrNull {
+                it.exported && (it.name.contains("MainActivity") || it.name.contains("Main") || it.name.contains("Launcher"))
+            } ?: activities.firstOrNull { it.exported }
+
+            if (candidate != null) {
+                return Intent().apply {
+                    component = ComponentName(packageName, candidate.name)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+
+        return null
     }
 
     fun getManageableApps(context: Context): List<ManageableApp> {
@@ -420,6 +485,9 @@ object DevicePolicyHelper {
             if (pkg == context.packageName || pkg == "com.sec.android.app.launcher" || pkg == "com.android.settings") continue
             if (ALLOWED_USER_PACKAGES.contains(pkg)) continue // 기본 필수 앱(전화, 문자, 삼성페이 등)은 제외
             if (!seenPackages.add(pkg)) continue
+
+            // 실제로 실행할 수 있는 액티비티가 전혀 없는 순수 백그라운드 서비스 패키지는 제외!
+            if (getAppLaunchIntent(context, pkg) == null) continue
 
             val label = try {
                 info.loadLabel(pm).toString()
