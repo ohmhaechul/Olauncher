@@ -89,12 +89,6 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
         viewModel.isOlauncherDefault()
         if (prefs.showStatusBar) showStatusBar()
         else hideStatusBar()
-
-        // 피쳐폰 모드 활성화 시 홈으로 복귀할 때마다 설정 앱을 즉시 재은닉하여 Recent Apps 우회 차단
-        val isKiosk = prefs.studentKioskEnabled || DevicePolicyHelper.isDeviceOwner(requireContext())
-        if (isKiosk && prefs.studentKioskEnabled) {
-            DevicePolicyHelper.setSettingsAppHidden(requireContext(), true)
-        }
     }
 
     override fun onPause() {

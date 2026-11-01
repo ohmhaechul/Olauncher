@@ -251,31 +251,29 @@ object DevicePolicyHelper {
             }
         }
 
-        // [방안 2]: 최근 앱(Recent Apps) 멀티태스킹 화면은 유지하되,
-        // com.sec.android.app.launcher(One UI 홈)는 unhide 상태를 유지합니다.
+        // [핵심]: One UI 홈(com.sec.android.app.launcher)과 설정(com.android.settings)은
+        // 시스템 필수 컴포넌트이므로 패키지 레벨에서 숨기지 않습니다 (부팅 hang 방지).
         try {
             dpm.setApplicationHidden(admin, "com.sec.android.app.launcher", false)
+            dpm.setApplicationHidden(admin, "com.android.settings", false)
         } catch (e: Exception) {
             // Ignore
         }
 
-        // [방안 2 보안 강화]:
-        // 1. 설정 앱(com.android.settings)을 시스템에서 완전 은닉하여
-        //    최근 앱의 추천 앱이나 앱 카드 상단의 '앱 정보'를 통한 설정 진입을 원천 차단합니다.
-        //    (부모님이 관리자 메뉴에서 8번을 누를 때만 일시적으로 unhide됨)
-        // 2. 삼성 파인더 검색(com.samsung.android.app.galaxyfinder) 및 Free(spage)를 은닉하여
-        //    최근 앱 상단 검색창을 통한 비허용 앱 검색 및 실행을 원천 차단합니다.
-        val securityBlockPackages = listOf(
-            "com.android.settings",
+        // 삼성 파인더 검색, Free(spage), 분할화면 트레이(appsedge), 엣지 서비스(cocktailbarservice) 은닉하여
+        // 최근 앱 화면의 상단 검색 및 멀티윈도우(분할 화면) 앱 선택 트레이를 통한 우회 차단
+        val searchBlockPackages = listOf(
             "com.samsung.android.app.galaxyfinder",
-            "com.samsung.android.app.spage"
+            "com.samsung.android.app.spage",
+            "com.samsung.android.app.appsedge",
+            "com.samsung.android.app.cocktailbarservice"
         )
-        for (pkg in securityBlockPackages) {
+        for (pkg in searchBlockPackages) {
             try {
                 dpm.setApplicationHidden(admin, pkg, true)
-                Log.d(TAG, "Hidden security package: $pkg")
+                Log.d(TAG, "Hidden search package: $pkg")
             } catch (e: Exception) {
-                Log.w(TAG, "Failed to hide security package: $pkg", e)
+                // Ignore
             }
         }
     }

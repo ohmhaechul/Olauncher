@@ -221,6 +221,8 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                             }
                             val intent = Intent(Settings.ACTION_SYNC_SETTINGS).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+                                addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
                             }
                             startActivity(intent)
                         } catch (e: Exception) {
@@ -248,12 +250,16 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                             }
                             val intent = Intent(Settings.ACTION_SETTINGS).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+                                addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
                             }
                             startActivity(intent)
                         } catch (e: Exception) {
                             try {
                                 val intent = context.packageManager.getLaunchIntentForPackage("com.android.settings")
                                 intent?.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                intent?.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+                                intent?.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
                                 if (intent != null) {
                                     startActivity(intent)
                                 } else {
