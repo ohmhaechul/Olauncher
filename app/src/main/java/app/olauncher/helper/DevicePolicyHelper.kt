@@ -57,9 +57,7 @@ object DevicePolicyHelper {
         "com.samsung.android.spay",
         "com.samsung.android.spaymini",
         "com.samsung.android.spayfw",
-        "com.samsung.android.rapproxy",
-        // 설정 (시스템 제어용 - Olauncher 내부에서 PIN 보호)
-        "com.android.settings",
+        "com.samsung.android.rapproxy"
     )
 
     data class ManageableApp(
@@ -253,19 +251,32 @@ object DevicePolicyHelper {
             }
         }
 
-        // [핵심] com.sec.android.app.launcher(삼성 One UI 홈)는 숨기지 않습니다.
-        // 삼성 기기에서 이를 숨기면 Recent Apps(최근 앱 키/오버뷰 화면)가 비활성화됩니다.
-        // Olauncher는 setDefaultLauncher(addPersistentPreferredActivity)를 통해 영구 기본 런처로 고정되므로,
-        // com.sec.android.app.launcher와 com.android.settings는 명시적으로 unhidden 상태를 유지합니다.
+        // [방안 2]: 최근 앱(Recent Apps) 멀티태스킹 화면은 유지하되,
+        // com.sec.android.app.launcher(One UI 홈)는 unhide 상태를 유지합니다.
         try {
             dpm.setApplicationHidden(admin, "com.sec.android.app.launcher", false)
         } catch (e: Exception) {
             // Ignore
         }
-        try {
-            dpm.setApplicationHidden(admin, "com.android.settings", false)
-        } catch (e: Exception) {
-            // Ignore
+
+        // [방안 2 보안 강화]:
+        // 1. 설정 앱(com.android.settings)을 시스템에서 완전 은닉하여
+        //    최근 앱의 추천 앱이나 앱 카드 상단의 '앱 정보'를 통한 설정 진입을 원천 차단합니다.
+        //    (부모님이 관리자 메뉴에서 8번을 누를 때만 일시적으로 unhide됨)
+        // 2. 삼성 파인더 검색(com.samsung.android.app.galaxyfinder) 및 Free(spage)를 은닉하여
+        //    최근 앱 상단 검색창을 통한 비허용 앱 검색 및 실행을 원천 차단합니다.
+        val securityBlockPackages = listOf(
+            "com.android.settings",
+            "com.samsung.android.app.galaxyfinder",
+            "com.samsung.android.app.spage"
+        )
+        for (pkg in securityBlockPackages) {
+            try {
+                dpm.setApplicationHidden(admin, pkg, true)
+                Log.d(TAG, "Hidden security package: $pkg")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to hide security package: $pkg", e)
+            }
         }
     }
 
@@ -563,7 +574,8 @@ object DevicePolicyHelper {
 
         for (info in resolveList) {
             val pkg = info.activityInfo.packageName
-            if (pkg == context.packageName || pkg == "com.sec.android.app.launcher" || pkg == "com.android.settings") continue
+            if (pkg == context.packageName || pkg == "com.sec.android.app.launcher" || pkg == "com.android.settings" ||
+                pkg == "com.samsung.android.app.galaxyfinder" || pkg == "com.samsung.android.app.spage") continue
             if (ALLOWED_USER_PACKAGES.contains(pkg)) continue // 기본 필수 앱(전화, 문자, 삼성페이 등)은 제외
             if (!seenPackages.add(pkg)) continue
 
@@ -707,6 +719,9 @@ object DevicePolicyHelper {
             }
             try {
                 dpm.setApplicationHidden(admin, "com.sec.android.app.launcher", false)
+                dpm.setApplicationHidden(admin, "com.android.settings", false)
+                dpm.setApplicationHidden(admin, "com.samsung.android.app.galaxyfinder", false)
+                dpm.setApplicationHidden(admin, "com.samsung.android.app.spage", false)
             } catch (e: Exception) {
                 // Ignore
             }
