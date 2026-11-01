@@ -39,6 +39,10 @@ object DevicePolicyHelper {
         "com.samsung.android.app.contacts",
         "com.android.contacts",
         "com.google.android.contacts",
+        // 캘린더
+        "com.samsung.android.calendar",
+        "com.google.android.calendar",
+        "com.android.calendar",
         // 시계 / 알람
         "com.sec.android.app.clockpackage",
         "com.google.android.deskclock",
@@ -327,11 +331,12 @@ object DevicePolicyHelper {
         val dialer = findFirstInstalledPackage(listOf("com.samsung.android.dialer", "com.google.android.dialer", "com.android.phone"))
         val messaging = findFirstInstalledPackage(listOf("com.samsung.android.messaging", "com.google.android.apps.messaging"))
         val contacts = findFirstInstalledPackage(listOf("com.samsung.android.app.contacts", "com.google.android.contacts", "com.android.contacts"))
+        val calendar = findFirstInstalledPackage(listOf("com.samsung.android.calendar", "com.google.android.calendar", "com.android.calendar"))
         val clock = findFirstInstalledPackage(listOf("com.sec.android.app.clockpackage", "com.google.android.deskclock"))
         val camera = findFirstInstalledPackage(listOf("com.sec.android.app.camera", "com.android.camera"))
         val gallery = findFirstInstalledPackage(listOf("com.sec.android.gallery3d", "com.google.android.apps.photos"))
 
-        prefs.homeAppsNum = 6
+        prefs.homeAppsNum = 7
         dialer?.let {
             prefs.appName1 = getAppName(it)
             prefs.appPackage1 = it
@@ -344,17 +349,21 @@ object DevicePolicyHelper {
             prefs.appName3 = getAppName(it)
             prefs.appPackage3 = it
         }
-        clock?.let {
+        calendar?.let {
             prefs.appName4 = getAppName(it)
             prefs.appPackage4 = it
         }
-        camera?.let {
+        clock?.let {
             prefs.appName5 = getAppName(it)
             prefs.appPackage5 = it
         }
-        gallery?.let {
+        camera?.let {
             prefs.appName6 = getAppName(it)
             prefs.appPackage6 = it
+        }
+        gallery?.let {
+            prefs.appName7 = getAppName(it)
+            prefs.appPackage7 = it
         }
 
         syncHomeApps(context)
@@ -399,20 +408,92 @@ object DevicePolicyHelper {
 
     fun syncHomeApps(context: Context) {
         val prefs = Prefs(context)
-        val extraApps = getExtraAppsList(context)
+        val pm = context.packageManager
 
+        fun findFirstInstalledPackage(candidates: List<String>): String? {
+            for (pkg in candidates) {
+                try {
+                    pm.getApplicationInfo(pkg, 0)
+                    return pkg
+                } catch (e: Exception) {
+                    // Not installed
+                }
+            }
+            return null
+        }
+
+        fun getAppName(packageName: String): String {
+            return try {
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                pm.getApplicationLabel(appInfo).toString()
+            } catch (e: Exception) {
+                packageName
+            }
+        }
+
+        // 1~7번 슬롯에 이전 버전에서 저장되었던 PACKAGE_MORE_APPS 정리
+        for (i in 1..7) {
+            if (prefs.getAppPackage(i) == PACKAGE_MORE_APPS) {
+                when (i) {
+                    1 -> { prefs.appName1 = ""; prefs.appPackage1 = "" }
+                    2 -> { prefs.appName2 = ""; prefs.appPackage2 = "" }
+                    3 -> { prefs.appName3 = ""; prefs.appPackage3 = "" }
+                    4 -> { prefs.appName4 = ""; prefs.appPackage4 = "" }
+                    5 -> { prefs.appName5 = ""; prefs.appPackage5 = "" }
+                    6 -> { prefs.appName6 = ""; prefs.appPackage6 = "" }
+                    7 -> { prefs.appName7 = ""; prefs.appPackage7 = "" }
+                }
+            }
+        }
+
+        // 1~7번 기본 필수 앱을 항상 정확하게 제자리에 동기화 (기존 잔여 덮어쓰기)
+        val dialer = findFirstInstalledPackage(listOf("com.samsung.android.dialer", "com.google.android.dialer", "com.android.phone"))
+        val messaging = findFirstInstalledPackage(listOf("com.samsung.android.messaging", "com.google.android.apps.messaging"))
+        val contacts = findFirstInstalledPackage(listOf("com.samsung.android.app.contacts", "com.google.android.contacts", "com.android.contacts"))
+        val calendar = findFirstInstalledPackage(listOf("com.samsung.android.calendar", "com.google.android.calendar", "com.android.calendar"))
+        val clock = findFirstInstalledPackage(listOf("com.sec.android.app.clockpackage", "com.google.android.deskclock"))
+        val camera = findFirstInstalledPackage(listOf("com.sec.android.app.camera", "com.android.camera"))
+        val gallery = findFirstInstalledPackage(listOf("com.sec.android.gallery3d", "com.google.android.apps.photos"))
+
+        dialer?.let {
+            prefs.appName1 = getAppName(it)
+            prefs.appPackage1 = it
+        }
+        messaging?.let {
+            prefs.appName2 = getAppName(it)
+            prefs.appPackage2 = it
+        }
+        contacts?.let {
+            prefs.appName3 = getAppName(it)
+            prefs.appPackage3 = it
+        }
+        calendar?.let {
+            prefs.appName4 = getAppName(it)
+            prefs.appPackage4 = it
+        }
+        clock?.let {
+            prefs.appName5 = getAppName(it)
+            prefs.appPackage5 = it
+        }
+        camera?.let {
+            prefs.appName6 = getAppName(it)
+            prefs.appPackage6 = it
+        }
+        gallery?.let {
+            prefs.appName7 = getAppName(it)
+            prefs.appPackage7 = it
+        }
+
+        // 8번 기타 앱 슬롯 동기화
+        val extraApps = getExtraAppsList(context)
         if (extraApps.isNotEmpty()) {
-            prefs.appName7 = "기타 앱"
-            prefs.appPackage7 = PACKAGE_MORE_APPS
+            prefs.appName8 = "기타 앱"
+            prefs.appPackage8 = PACKAGE_MORE_APPS
+            prefs.homeAppsNum = 8
+        } else {
             prefs.appName8 = ""
             prefs.appPackage8 = ""
             prefs.homeAppsNum = 7
-        } else {
-            prefs.appName7 = ""
-            prefs.appPackage7 = ""
-            prefs.appName8 = ""
-            prefs.appPackage8 = ""
-            prefs.homeAppsNum = 6
         }
     }
 

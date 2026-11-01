@@ -203,7 +203,14 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
                     showAppList(Constants.FLAG_SET_HOME_APP_7, prefs.appName7.isNotEmpty(), true)
                 }
             }
-            R.id.homeApp8 -> showAppList(Constants.FLAG_SET_HOME_APP_8, prefs.appName8.isNotEmpty(), true)
+            R.id.homeApp8 -> {
+                if (prefs.appPackage8 == DevicePolicyHelper.PACKAGE_MORE_APPS) {
+                    showMoreAppsBottomSheet()
+                    true
+                } else {
+                    showAppList(Constants.FLAG_SET_HOME_APP_8, prefs.appName8.isNotEmpty(), true)
+                }
+            }
             R.id.clock -> false
             R.id.date -> false
 
