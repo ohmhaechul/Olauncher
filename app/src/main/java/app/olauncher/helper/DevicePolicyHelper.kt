@@ -57,7 +57,12 @@ object DevicePolicyHelper {
         "com.samsung.android.spay",
         "com.samsung.android.spaymini",
         "com.samsung.android.spayfw",
-        "com.samsung.android.rapproxy"
+        "com.samsung.android.rapproxy",
+        // 자녀 위치 추적 및 기기 찾기 (홈 화면 노출 없이 백그라운드 필수 동작)
+        "com.samsung.android.app.find",
+        "com.samsung.android.fmm",
+        "com.samsung.android.oneconnect",
+        "com.google.android.apps.adm"
     )
 
     data class ManageableApp(
@@ -71,7 +76,8 @@ object DevicePolicyHelper {
             return true
         }
         val prefs = Prefs(context)
-        return prefs.customAllowedPackages.contains(packageName)
+        return prefs.customAllowedPackages.contains(packageName) ||
+               prefs.backgroundOnlyAllowedPackages.contains(packageName)
     }
 
     fun getAdminComponent(context: Context): ComponentName {
@@ -629,6 +635,80 @@ object DevicePolicyHelper {
         }
 
         syncHomeApps(context)
+    }
+
+    fun getBackgroundManageableApps(context: Context): List<ManageableApp> {
+        val pm = context.packageManager
+        val prefs = Prefs(context)
+        val bgAllowed = prefs.backgroundOnlyAllowedPackages
+
+        val launcherIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_LAUNCHER)
+        }
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            PackageManager.MATCH_UNINSTALLED_PACKAGES or PackageManager.MATCH_DISABLED_COMPONENTS
+        } else {
+            0
+        }
+        val resolveList = pm.queryIntentActivities(launcherIntent, flags)
+        val result = mutableListOf<ManageableApp>()
+        val seenPackages = mutableSetOf<String>()
+
+        for (info in resolveList) {
+            val pkg = info.activityInfo.packageName
+            if (pkg == context.packageName || pkg == "com.sec.android.app.launcher" || pkg == "com.android.settings" ||
+                pkg == "com.samsung.android.app.galaxyfinder" || pkg == "com.samsung.android.app.spage" ||
+                pkg == "com.samsung.android.app.appsedge" || pkg == "com.samsung.android.app.cocktailbarservice") continue
+            if (ALLOWED_USER_PACKAGES.contains(pkg)) continue
+            if (!seenPackages.add(pkg)) continue
+
+            val label = try {
+                info.loadLabel(pm).toString()
+            } catch (e: Exception) {
+                pkg
+            }
+            result.add(
+                ManageableApp(
+                    label = label,
+                    packageName = pkg,
+                    isAllowed = bgAllowed.contains(pkg)
+                )
+            )
+        }
+        return result.sortedBy { it.label }
+    }
+
+    fun setBackgroundOnlyAllowedPackages(context: Context, newAllowedSet: Set<String>) {
+        val prefs = Prefs(context)
+        val oldAllowed = prefs.backgroundOnlyAllowedPackages
+        prefs.backgroundOnlyAllowedPackages = newAllowedSet
+
+        if (isDeviceOwner(context)) {
+            val dpm = getDpm(context)
+            val admin = getAdminComponent(context)
+
+            // 새로 허용된 앱 unhide
+            for (pkg in newAllowedSet) {
+                try {
+                    dpm.setApplicationHidden(admin, pkg, false)
+                    Log.d(TAG, "Unhid background allowed package: $pkg")
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to unhide background app: $pkg", e)
+                }
+            }
+
+            // 해제된 앱 다시 hide (단, 다른 허용 목록에도 없는 경우에만)
+            for (pkg in oldAllowed) {
+                if (!newAllowedSet.contains(pkg) && !isPackageAllowed(context, pkg)) {
+                    try {
+                        dpm.setApplicationHidden(admin, pkg, true)
+                        Log.d(TAG, "Hid background package: $pkg")
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to hide background app: $pkg", e)
+                    }
+                }
+            }
+        }
     }
 
     /**

@@ -650,6 +650,7 @@ class Prefs(context: Context) {
     private val STATUS_BAR_BLOCKED = "STATUS_BAR_BLOCKED"
     private val GOOGLE_ACCOUNT_LOCKED = "GOOGLE_ACCOUNT_LOCKED"
     private val CUSTOM_ALLOWED_PACKAGES = "CUSTOM_ALLOWED_PACKAGES"
+    private val BACKGROUND_ONLY_ALLOWED_PACKAGES = "BACKGROUND_ONLY_ALLOWED_PACKAGES"
     private val ALLOW_APP_DRAWER_IN_KIOSK = "ALLOW_APP_DRAWER_IN_KIOSK"
 
     var parentPin: String
@@ -671,6 +672,10 @@ class Prefs(context: Context) {
     var customAllowedPackages: Set<String>
         get() = prefs.getStringSet(CUSTOM_ALLOWED_PACKAGES, emptySet()) ?: emptySet()
         set(value) = prefs.edit { putStringSet(CUSTOM_ALLOWED_PACKAGES, value).apply() }
+
+    var backgroundOnlyAllowedPackages: Set<String>
+        get() = prefs.getStringSet(BACKGROUND_ONLY_ALLOWED_PACKAGES, emptySet()) ?: emptySet()
+        set(value) = prefs.edit { putStringSet(BACKGROUND_ONLY_ALLOWED_PACKAGES, value).apply() }
 
     var allowAppDrawerInKiosk: Boolean
         get() = prefs.getBoolean(ALLOW_APP_DRAWER_IN_KIOSK, false)

@@ -179,14 +179,15 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
         val isDeviceOwner = DevicePolicyHelper.isDeviceOwner(context)
         val items = arrayOf(
             "1. 피쳐폰 정책 적용 (앱 숨김 & 제한)",
-            "2. 추가 허용 앱 관리 (사전, 지도, 인강 등) [${prefs.customAllowedPackages.size}개 허용됨]",
-            "3. 계정(삼성/구글) 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
-            "4. 계정 관리 열기 (삼성/구글 계정 로그인)",
-            "5. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
-            "6. 앱 서랍(위로 밀어 앱 목록 보기) 토글 (현재: ${if (prefs.allowAppDrawerInKiosk) "허용됨" else "차단됨"})",
-            "7. 부모님 비밀번호 변경",
-            "8. 안드로이드 전체 시스템 설정 열기",
-            "9. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
+            "2. 추가 허용 앱 관리 (기타 앱 메뉴에 노출) [${prefs.customAllowedPackages.size}개 허용됨]",
+            "3. 백그라운드 전용 허용 앱 (메뉴 미노출: 아파트 출입, 위치 추적 등) [${prefs.backgroundOnlyAllowedPackages.size}개 허용됨]",
+            "4. 계정(삼성/구글) 추가/삭제 허용 토글 (현재: ${if (prefs.googleAccountLocked) "차단됨" else "허용됨"})",
+            "5. 계정 관리 열기 (삼성/구글 계정 로그인)",
+            "6. 상단바 내리기 차단 토글 (현재: ${if (prefs.statusBarBlocked) "차단됨" else "허용됨"})",
+            "7. 앱 서랍(위로 밀어 앱 목록 보기) 토글 (현재: ${if (prefs.allowAppDrawerInKiosk) "허용됨" else "차단됨"})",
+            "8. 부모님 비밀번호 변경",
+            "9. 안드로이드 전체 시스템 설정 열기",
+            "10. 피쳐폰 정책 해제 (모든 앱 및 설정 정상 복구)"
         )
         AlertDialog.Builder(context)
             .setTitle("부모님 관리자 메뉴")
@@ -208,16 +209,23 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                         }
                     }
                     2 -> {
+                        if (isDeviceOwner) {
+                            showManageBackgroundAppsDialog(context)
+                        } else {
+                            context.showToast("Device Owner 권한이 필요합니다.")
+                        }
+                    }
+                    3 -> {
                         val currentLocked = prefs.googleAccountLocked
                         val newLocked = !currentLocked
                         prefs.googleAccountLocked = newLocked
                         DevicePolicyHelper.setAccountModificationAllowed(context, !newLocked)
                         context.showToast(if (newLocked) "계정(삼성/구글) 추가/삭제가 차단되었습니다." else "계정(삼성/구글) 추가/삭제가 허용되었습니다.")
                     }
-                    3 -> {
+                    4 -> {
                         try {
                             if (prefs.googleAccountLocked) {
-                                context.showToast("계정 추가가 차단되어 있습니다. 먼저 3번을 눌러 허용해 주세요.")
+                                context.showToast("계정 추가가 차단되어 있습니다. 먼저 4번을 눌러 허용해 주세요.")
                             }
                             val intent = Intent(Settings.ACTION_SYNC_SETTINGS).apply {
                                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -229,21 +237,21 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                             context.showToast("계정 설정 열기 실패: ${e.message}")
                         }
                     }
-                    4 -> {
+                    5 -> {
                         val currentBlocked = prefs.statusBarBlocked
                         val newBlocked = !currentBlocked
                         prefs.statusBarBlocked = newBlocked
                         DevicePolicyHelper.setStatusBarDisabled(context, newBlocked)
                         context.showToast(if (newBlocked) "상단바 내리기가 차단되었습니다." else "상단바 내리기가 허용되었습니다.")
                     }
-                    5 -> {
+                    6 -> {
                         val currentDrawer = prefs.allowAppDrawerInKiosk
                         val newDrawer = !currentDrawer
                         prefs.allowAppDrawerInKiosk = newDrawer
                         context.showToast(if (newDrawer) "앱 서랍(위로 밀기)이 허용되었습니다." else "앱 서랍(위로 밀기)이 차단되었습니다.")
                     }
-                    6 -> showChangePinDialog()
-                    7 -> {
+                    7 -> showChangePinDialog()
+                    8 -> {
                         try {
                             if (isDeviceOwner) {
                                 DevicePolicyHelper.setSettingsAppHidden(context, false)
@@ -270,7 +278,7 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                             }
                         }
                     }
-                    8 -> {
+                    9 -> {
                         if (isDeviceOwner) {
                             DevicePolicyHelper.disableStudentKioskPolicies(context)
                             context.showToast("피쳐폰 정책이 해제되고 모든 앱이 복구되었습니다.")
@@ -305,6 +313,31 @@ class SettingsFragment : BaseFragment(), View.OnClickListener, View.OnLongClickL
                 DevicePolicyHelper.setCustomAllowedPackages(context, selected)
                 viewModel.refreshHome(true)
                 context.showToast("${selected.size}개의 앱이 허용되었습니다.")
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showManageBackgroundAppsDialog(context: Context) {
+        val apps = DevicePolicyHelper.getBackgroundManageableApps(context)
+        if (apps.isEmpty()) {
+            context.showToast("백그라운드로 허용할 수 있는 설치된 앱이 없습니다.")
+            return
+        }
+        val itemLabels = apps.map { it.label }.toTypedArray()
+        val checkedItems = apps.map { it.isAllowed }.toBooleanArray()
+
+        AlertDialog.Builder(context)
+            .setTitle("백그라운드 전용 허용 앱 (메뉴 미노출)")
+            .setMultiChoiceItems(itemLabels, checkedItems) { _, which, isChecked ->
+                checkedItems[which] = isChecked
+            }
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                val selected = apps.filterIndexed { index, _ -> checkedItems[index] }
+                    .map { it.packageName }
+                    .toSet()
+                DevicePolicyHelper.setBackgroundOnlyAllowedPackages(context, selected)
+                context.showToast("${selected.size}개의 앱이 백그라운드 전용으로 허용되었습니다.")
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
