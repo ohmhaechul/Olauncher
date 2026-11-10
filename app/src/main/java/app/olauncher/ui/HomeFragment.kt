@@ -574,6 +574,14 @@ class HomeFragment : BaseFragment(), View.OnClickListener, View.OnLongClickListe
             showMoreAppsBottomSheet()
             return
         }
+
+        // 스마트 통화 복귀: 전화 앱 클릭 시 현재 통화 중이라면 키패드 대신 통화 화면(종료 버튼 화면)으로 직행
+        if (DevicePolicyHelper.isDialerPackage(requireContext(), pkg)) {
+            if (DevicePolicyHelper.restoreInCallScreen(requireContext())) {
+                return
+            }
+        }
+
         launchAppOrShortcut(
             appName = prefs.getAppName(location),
             packageName = prefs.getAppPackage(location),

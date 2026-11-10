@@ -59,6 +59,7 @@ class MainActivity : AppCompatActivity() {
     private var timerJob: Job? = null
     private var isResumed = false
     private var profileReceiver: BroadcastReceiver? = null
+    private var userPresentReceiver: BroadcastReceiver? = null
     private var launcherAppsCallback: LauncherApps.Callback? = null
     private var messageDialog: OlDialog? = null
 
@@ -128,6 +129,17 @@ class MainActivity : AppCompatActivity() {
             }
             registerReceiver(profileReceiver, filter)
         }
+
+        // 스마트 통화 복귀: 락 화면 해제 시 통화 중이면 통화 화면(종료 버튼 화면) 자동 복원
+        userPresentReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) {
+                if (intent?.action == Intent.ACTION_USER_PRESENT) {
+                    context?.let { DevicePolicyHelper.restoreInCallScreen(it) }
+                }
+            }
+        }
+        val userPresentFilter = IntentFilter(Intent.ACTION_USER_PRESENT)
+        registerReceiver(userPresentReceiver, userPresentFilter)
     }
 
     override fun onStart() {
@@ -402,6 +414,12 @@ class MainActivity : AppCompatActivity() {
             getSystemService(LauncherApps::class.java).unregisterCallback(it)
         }
         profileReceiver?.let {
+            try {
+                unregisterReceiver(it)
+            } catch (_: Exception) {
+            }
+        }
+        userPresentReceiver?.let {
             try {
                 unregisterReceiver(it)
             } catch (_: Exception) {

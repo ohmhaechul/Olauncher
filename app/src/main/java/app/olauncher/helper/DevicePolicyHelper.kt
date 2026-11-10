@@ -1,5 +1,6 @@
 package app.olauncher.helper
 
+import android.Manifest
 import android.app.WallpaperManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
@@ -11,7 +12,9 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Build
 import android.os.UserManager
+import android.telecom.TelecomManager
 import android.util.Log
+import androidx.core.content.ContextCompat
 import app.olauncher.MainActivity
 import app.olauncher.data.Prefs
 import app.olauncher.listener.DeviceAdmin
@@ -62,7 +65,10 @@ object DevicePolicyHelper {
         "com.samsung.android.app.find",
         "com.samsung.android.fmm",
         "com.samsung.android.oneconnect",
-        "com.google.android.apps.adm"
+        "com.google.android.apps.adm",
+        // 디지털 웰빙 / 스크린 타임 모니터링 (홈 화면 노출 없이 부모님 사용시간 확인용)
+        "com.samsung.android.forest",
+        "com.google.android.apps.wellbeing"
     )
 
     data class ManageableApp(
@@ -162,6 +168,9 @@ object DevicePolicyHelper {
 
             // 9. 화면 더블탭 잠금 기본 활성화
             prefs.lockModeOn = true
+
+            // 10. 스마트 통화 복귀를 위한 READ_PHONE_STATE 권한 자동 부여
+            grantPhoneStatePermission(context)
 
             prefs.studentKioskEnabled = true
             Log.i(TAG, "Successfully applied student kiosk policies safely!")
@@ -816,5 +825,71 @@ object DevicePolicyHelper {
         } catch (e: Exception) {
             Log.e(TAG, "Error disabling kiosk policies", e)
         }
+    }
+
+    fun grantPhoneStatePermission(context: Context) {
+        if (!isDeviceOwner(context)) return
+        val dpm = getDpm(context)
+        val admin = getAdminComponent(context)
+        try {
+            dpm.setPermissionGrantState(
+                admin,
+                context.packageName,
+                Manifest.permission.READ_PHONE_STATE,
+                DevicePolicyManager.PERMISSION_GRANT_STATE_GRANTED
+            )
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to grant READ_PHONE_STATE permission", e)
+        }
+    }
+
+    fun isDialerPackage(context: Context, packageName: String): Boolean {
+        if (packageName.isBlank()) return false
+        val knownDialers = setOf(
+            "com.samsung.android.dialer",
+            "com.google.android.dialer",
+            "com.android.phone",
+            "com.android.dialer"
+        )
+        if (knownDialers.contains(packageName)) return true
+        return try {
+            val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+            telecomManager?.defaultDialerPackage == packageName
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+    /**
+     * 현재 진행 중인 통화가 있다면 통화 화면(종료 버튼, 스피커폰 등)으로 즉시 복귀시킵니다.
+     * @return 복귀 명령이 성공적으로 실행되었으면 true
+     */
+    fun restoreInCallScreen(context: Context): Boolean {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val telecomManager = context.getSystemService(Context.TELECOM_SERVICE) as? TelecomManager ?: return false
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.READ_PHONE_STATE
+                ) == PackageManager.PERMISSION_GRANTED
+
+                if (!hasPermission && !isDeviceOwner(context)) {
+                    return false
+                }
+
+                if (!hasPermission && isDeviceOwner(context)) {
+                    grantPhoneStatePermission(context)
+                }
+
+                if (telecomManager.isInCall) {
+                    telecomManager.showInCallScreen(false)
+                    Log.d(TAG, "Restored in-call screen successfully")
+                    return true
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to restore in-call screen", e)
+        }
+        return false
     }
 }
